@@ -1,0 +1,87 @@
+-- Создать дату вылета и дату прилета в следующем виде: 'day number Month Name (Day Name) year'
+SELECT 
+    c.name,
+    t.plane,
+    CONCAT(
+        CAST(DAY(t.time_out) AS CHAR(5)), ' ',
+        MONTHNAME(t.time_out), ' (',
+        DAYNAME(t.time_out), ') ',
+        CAST(YEAR(t.time_out) AS CHAR(5))
+    ) AS date
+FROM Trip t
+INNER JOIN Company c ON c.id = t.company
+
+
+-- Заменить серии следующих самолетов: TU-134 на TU-77, TU-154 на TU-90
+-- Вывести оригинальное название самолета и измененное
+SELECT 
+    plane as plane_original,
+    REPLACE(
+        REPLACE(plane, '-134', '-77'), '-154', '-90'
+    ) AS 'renamed_plane'
+FROM Trip
+
+
+-- Вывести название самолета и его номер
+-- Если номера нет, вывести Null
+-- Дополнительно: заменить NULL на - "Кода нет"
+SELECT
+    plane,
+    COALESCE(
+        IF(plane LIKE '%-%', IF(
+            LENGTH(plane) = 6, RIGHT(plane, 3), RIGHT(plane, 2)
+        ), Null),
+    'Кода Нет') AS plane_code
+FROM Trip
+
+
+-- Из-за плохой погоды вылет всех самолетов из Москвы задерживается на 1ч
+-- Добавить задержку в 1ч для всех рейсов из Москвы (обновлять значения таблицы не нужно)
+-- Вывести Авикомпанию, самолет, город вылета, старое время вылета и скоректированное
+SELECT
+    c.name,
+    t.plane,
+    t.town_from,
+    DATE_FORMAT(t.time_out, '%d %b, %H:%i') AS old_time_out,
+    DATE_FORMAT(
+        ADDDATE(t.time_out , INTERVAL 1 HOUR),
+        '%d %b, %H:%i'
+    ) AS new_time_out
+    
+FROM Trip t
+INNER JOIN Company c ON c.id = t.company
+WHERE town_from = 'Moscow'
+
+
+-- Найти самый длительный рейс
+SELECT 
+    plane, 
+    town_from,
+    town_to,
+    TIMEDIFF(time_in, time_out) AS flight_time
+FROM Trip
+ORDER BY flight_time DESC
+LIMIT 1
+
+
+-- Найти рейсы которые имеют одинаковое время отправления
+SELECT
+    t1.plane,
+    t1.town_from,
+    t1.town_to,
+    DATE_FORMAT(t1.time_out, '%d %b, %H:%i') AS time_out
+FROM Trip t1, Trip t2
+WHERE 
+    t1.id != t2.id
+    AND DATE_FORMAT(t1.time_out, '%d %b, %H:%i') = DATE_FORMAT(t2.time_out, '%d %b, %H:%i')
+
+
+
+
+
+Используемые функции 
+- CONCAT, REPLACE, LIKE, LENGTH, RIGHT
+- CAST
+- MONTHNAME, DAYNAME, YEAR, DATE_FORMAT, ADDDATE, TIMEDIFF
+- IF, COALESCE
+- SELF JOIN

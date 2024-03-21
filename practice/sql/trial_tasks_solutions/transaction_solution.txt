@@ -1,0 +1,114 @@
+// tables creation
+
+-- create transactions table
+CREATE TABLE IF NOT EXISTS transactions (
+	id SERIAL PRIMARY KEY,
+	date DATE,
+	amount INT,
+	currency VARCHAR(5)
+);
+
+-- create currency rate table
+CREATE TABLE IF NOT EXISTS currency_rate (
+	id SERIAL PRIMARY KEY,
+	date DATE,
+	currency VARCHAR(5),
+	rate FLOAT
+);
+
+-- fill the tables with the data (transactions)
+INSERT INTO transactions (date, amount, currency)
+VALUES 
+	('2022-12-31', 300, 'USD'),
+	('2023-01-05', 100, 'EUR'),
+	('2023-01-08', 500, 'USD'),
+	('2023-01-11', 500, 'USD'),
+	('2023-01-11', 300, 'EUR');
+	
+-- fill the tables with the data (currency_rate), rate -> RUB
+INSERT INTO currency_rate (date, currency, rate)
+VALUES 
+	('2022-12-31', 'USD', 70.33),
+	('2023-01-10', 'EUR', 70.30),
+	('2023-01-10', 'USD', 75.00),
+	('2023-01-11', 'USD', 69.90),
+	('2023-01-11', 'EUR', 74.50);
+
+
+// solution
+
+-- step 1. JOIN the tables using FULL JOIN and put it into VIEW (temporary table)
+CREATE OR REPLACE VIEW main_table AS 
+	SELECT
+		sub_table.transaction_date,
+		sub_table.amount,
+		sub_table.transaction_currency,
+		COALESCE(currency_rate_date, sub_table.transaction_date) AS currency_rate_date,
+		COALESCE(currency_rate_currency, sub_table.transaction_currency) AS currency_rate_currency,
+		rate
+	FROM (
+		SELECT
+			t.date AS transaction_date,
+			t.amount, 
+			t.currency AS transaction_currency,
+			c.date AS currency_rate_date,
+			c.currency AS currency_rate_currency,
+			c.rate
+		FROM transactions t
+		LEFT JOIN currency_rate c ON t.date = c.date AND t.currency = c.currency
+		UNION
+		SELECT
+			t.date AS transaction_date,
+			t.amount, 
+			t.currency AS transaction_currency, 
+			c.date AS currency_rate_date,
+			c.currency AS currency_rate_currency,
+			c.rate
+		FROM transactions t
+		RIGHT JOIN currency_rate c ON t.date = c.date AND t.currency = c.currency
+		ORDER BY transaction_date
+	) AS sub_table;
+			
+			
+-- this is how main table looks like (ncomment later)
+-- SELECT * 
+-- FROM main_table
+
+-- some currencies have missing rate values. We must fill them in!
+-- example for either 'USD' or 'EUR'
+-- SELECT
+-- 	currency_rate_date,
+--	currency_rate_currency,
+--	rate
+-- FROM main_table
+-- WHERE currency_rate_currency = 'EUR'
+
+-- problem: missing value can be at any position (we must consider it!)
+
+-- step 2: fill missing values for currencies and calculate the result
+SELECT
+	result_table.transaction_date,
+	result_table.amount,
+	result_table.transaction_currency,
+	result_table.currency_rate_date,
+	result_table.currency_rate_currency,
+	result_table.rate,
+	-- final result in RUB
+	result_table.amount * result_table.rate AS amount_rub
+FROM (
+	SELECT
+		transaction_date,
+		amount,
+		transaction_currency,
+		currency_rate_date,
+		currency_rate_currency,
+		COALESCE(
+			-- first COALESCE -> fill missing values that are in the middle
+			COALESCE(rate, FIRST_VALUE(rate) OVER (PARTITION BY currency_rate_currency ORDER BY currency_rate_date)),
+			-- if we still have missing values -> fill by next value -> LEAD(1)
+			LEAD(rate, 1) OVER (PARTITION BY currency_rate_currency ORDER BY currency_rate_date)
+		) AS rate
+	FROM main_table
+	WHERE transaction_date IS NOT NULL
+	ORDER BY transaction_date
+) AS result_table
