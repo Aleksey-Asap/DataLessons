@@ -1,0 +1,34 @@
+задача с работы:
+SELECT
+    ARRAY_AGG(quote_literal(activity_key)) AS activity_keys
+FROM
+    “activityudf” .activity_udf_record
+WHERE 
+    udf_data::json->'udf_8856' IS NULL
+    AND (
+    udf_data::json->>'ac_11768' - 'MTS' 
+    OR udf_data::json->>'ac_11768' - 'IOTS'
+    OR udf_data::json->>'ac_11768' - 'OTS'
+);
+
+-- ARRAY_AGG: она позволяет собрать в массив данные всего столбца (если выборка из одного столбца).
+-- quote_literal: преобразует значение в строковый литерал (литерал - это неизменямый параметр, обычно имеет тип str)
+-- Преобразование типов можно длеать 2 способами: 1 - функция CAST СAST('123', INT), 2 - используя ::, '123'::STR
+
+
+-- Разбор статьи на хабр: https://habr.com/ru/articles/340460/
+
+-- начало транзакции 
+ROLLBACK;
+BEGIN;
+CREATE TEMP TABLE my_fist_temp_table -- создаем временную таблицу
+ON COMMIT DROP -- удаляем таблицу при завершении транзакции: когда в конце напишем команду COMMIT;
+AS 
+SELECT 1 AS id, CAST ('какие-то значения' AS TEXT) AS val; -- подставляем значения во временную таблицу
+
+-- выводим данные из таблицы
+SELECT * FROM my_fist_temp_table;
+COMMIT; -- завершаем транзакцию - временная таблица удаляется
+
+
+SELECT * FROM my_fist_temp_table -- повторныйвызов этой команды вызовет ошибку, так как транзакция была завершена
