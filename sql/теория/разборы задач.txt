@@ -183,9 +183,26 @@ WHERE u_name LIKE ANY (ARRAY['В%', '%аа%', 'Ульяна Х.', 'Елисей%
 Ряд полезныех команд
 --------------------
 * COALESCE - выбирает первое не NULL значение
-    SELECT COALESCE(NULL, NULL, -20, 1, NULL, -7); --выберет -20
+    SELECT COALESCE(NULL, NULL, -20, 1, NULL, -7); -- выберет -20
     SELECT COALESCE(salary, 'Нет Данных'):
         120k -> 120K
         NULL -> Нет Данных
         300к -> 300к
         NULL -> Нет Данных
+
+* NULLIF - проверяет равны ли 2 значения x и y
+    - NULLIF(2, 2) -> NULL
+    - NULLIF(2, 0) -> 2
+
+* GREATEST/LEAST - выводит минимальное/максимальное значение 
+    - GREATEST(1, 15, -2) -> 15
+    - LEAST(1, 0, -2) -> -2
+
+* pg_typeof(col) - определяет тип столбца
+    - pg_typeof(salary) -> numeric
+    - pg_typeof(name) -> varchar
+
+* pg_stat_activity - таблица, хранящая все текущи процессы в БД
+    - PID - Processs Status Id (ID процесса)
+    - SELECT pg_terminate_backend(PID) -> останавливает процесс в щадящем режиме (может не сработать)
+    - SELECT pg_cancel_backend(PID) -> гарантировно останавливает процесс
