@@ -1,3 +1,7 @@
+Статья
+------
+- https://habr.com/ru/articles/268983/
+
 Синтаксиси оконной функции
 --------------------------
 некая функция OVER окно
@@ -23,3 +27,126 @@ ORDER BY id;
   6 |       2 | Заголовок |    95 |      1
   7 |       4 | Заголовок |    26 |      6
   8 |       3 | Заголовок |    36 |      3
+
+
+SELECT
+    id,
+    section,
+    header,
+    score,
+    row_number() OVER (PARTITION BY section ORDER BY score DESC)  AS rating_in_section
+FROM news
+ORDER BY section, rating_in_section;
+
+ id | section |  header   | score | rating_in_section 
+----+---------+-----------+-------+-------------------
+  2 |       1 | Заголовок |     6 |                 1
+  6 |       2 | Заголовок |    95 |                 1
+  5 |       2 | Заголовок |    34 |                 2
+  1 |       2 | Заголовок |    23 |                 3
+  4 |       3 | Заголовок |    36 |                 1
+  8 |       3 | Заголовок |    36 |                 2
+  3 |       4 | Заголовок |    79 |                 1
+  7 |       4 | Заголовок |    26 |                 2
+
+* Обращай внимание PARTITION BY
+
+Два Способа Использования Агрегатных Функций
+---------------------------------------------
+SELECT
+    transaction_id,
+    change,
+    sum(change) OVER () as result_balance
+FROM balance_change
+ORDER BY transaction_id;
+
+ transaction_id | change | result_balance 
+----------------+--------+----------------
+              1 |   1.00 |          10.50
+              2 |  -2.00 |          10.50
+              3 |  10.00 |          10.50
+              4 |  -4.00 |          10.50
+              5 |   5.50 |          10.50
+
+* Если мы не используем ORDER BY в OVER (), то результат -> сумма по столбцу
+
+SELECT
+    transaction_id,
+    change,
+    sum(change) OVER (ORDER BY transaction_id) as balance
+FROM balance_change 
+ORDER BY transaction_id;
+
+ transaction_id | change | balance 
+----------------+--------+---------
+              1 |   1.00 |    1.00
+              2 |  -2.00 |   -1.00
+              3 |  10.00 |    9.00
+              4 |  -4.00 |    5.00
+              5 |   5.50 |   10.50
+
+* При использовании ORDER BY в OVER (), результатом будет кумулятивная сумма для каждой строки
+* Это очень важно!
+
+SELECT
+    transaction_id,
+    change,
+    sum(change) OVER (ORDER BY transaction_id) as balance,
+    sum(change) OVER () as result_balance,
+    round(
+        100.0 * sum(change) OVER (ORDER BY transaction_id)  /  sum(change) OVER (),
+        2
+    ) AS percent_of_result,
+    count(*) OVER () as transactions_count
+FROM balance_change
+ORDER BY transaction_id;
+
+ transaction_id | change | balance | result_balance | percent_of_result | transactions_count 
+----------------+--------+---------+----------------+-------------------+--------------------
+              1 |   1.00 |    1.00 |          10.50 |              9.52 |                  5
+              2 |  -2.00 |   -1.00 |          10.50 |             -9.52 |                  5
+              3 |  10.00 |    9.00 |          10.50 |             85.71 |                  5
+              4 |  -4.00 |    5.00 |          10.50 |             47.62 |                  5
+              5 |   5.50 |   10.50 |          10.50 |            100.00 |                  5
+
+
+Как избежать дублирования окна OVER()
+-------------------------------------
+* Если мы используем разные функции, но окно всегда одно и тоже, то лучше использовать 
+ключевое слово WINDOW -> избежать дублирования кода!
+
+
+Плохой SQL код
+--------------
+SELECT
+    min(salary) OVER (PARTITION BY depname ORDER BY salary DESC),
+    sum(salary)) OVER (PARTITION BY depname ORDER BY salary DESC),
+    avg(salary) OVER (PARTITION BY depname ORDER BY salary DESC)
+FROM empsalary
+
+Хороший SQL код
+--------------
+SELECT
+    min(salary) OVER w,
+    sum(salary) OVER w,
+    avg(salary) OVER w
+FROM empsalary
+WINDOW w AS (PARTITION BY depname ORDER BY salary DESC);
+
+Как задавать сортировку внутри оконных функций?
+----------------------------------------------
+* Только используя подзапрос, так как WHERE идет после FROM, а не SELECT.
+
+
+SELECT *
+FROM (
+    SELECT
+        id,
+        section,
+        header,
+        score,
+        row_number() OVER (PARTITION BY section ORDER BY score DESC)  AS rating_in_section
+    FROM news
+    ORDER BY section, rating_in_section
+) counted_news
+WHERE rating_in_section <= 5;
